@@ -37,28 +37,49 @@ A comprehensive Task Management System built with Flutter, featuring user authen
 ## Project Structure
 
 ```
-lib/
-├── models/
-│   ├── user.dart                 # User data model
-│   └── task.dart                 # Task data model
-├── screens/
-│   ├── auth/
-│   │   ├── login_screen.dart     # Login page
-│   │   └── register_screen.dart  # Registration page
-│   ├── dashboard/
-│   │   └── dashboard_screen.dart # Main dashboard
-│   └── profile/
-│       └── profile_screen.dart   # Profile management
-├── services/
-│   ├── auth_service.dart         # Authentication service
-│   ├── auth_provider.dart        # Authentication state management
-│   └── task_service.dart         # Task management service
-├── widgets/
-│   ├── custom_text_field.dart    # Reusable text input widget
-│   └── custom_button.dart        # Reusable button widget
-└── main.dart                     # App entry point
+├─ lib
+│  ├─ demo_main.dart
+│  ├─ firebase_options.dart
+│  ├─ main.dart
+│  ├─ main_new.dart
+│  ├─ main_simple.dart
+│  ├─ models
+│  │  ├─ project.dart
+│  │  ├─ task.dart
+│  │  └─ user.dart
+│  ├─ screens
+│  │  ├─ auth
+│  │  │  ├─ forgot_password_screen.dart
+│  │  │  ├─ login_screen.dart
+│  │  │  └─ register_screen.dart
+│  │  ├─ calendar
+│  │  │  └─ calendar_screen.dart
+│  │  ├─ dashboard
+│  │  │  └─ dashboard_screen.dart
+│  │  ├─ profile
+│  │  │  └─ profile_screen.dart
+│  │  ├─ projects
+│  │  │  └─ projects_screen.dart
+│  │  └─ tasks
+│  │     ├─ create_task_screen.dart
+│  │     ├─ task_detail_screen.dart
+│  │     └─ task_list_screen.dart
+│  ├─ services
+│  │  ├─ auth_provider.dart
+│  │  ├─ auth_service.dart
+│  │  ├─ firebase_auth_provider.dart
+│  │  ├─ firebase_auth_service.dart
+│  │  ├─ firebase_task_provider.dart
+│  │  ├─ firebase_task_service.dart
+│  │  ├─ local_storage_service.dart
+│  │  ├─ project_service.dart
+│  │  ├─ task_provider.dart
+│  │  └─ task_service.dart
+│  └─ widgets
+│     ├─ custom_button.dart
+│     ├─ custom_text_field.dart
+│     └─ task_card.dart
 ```
-
 ## Screenshots & Features
 
 ### Login Screen
