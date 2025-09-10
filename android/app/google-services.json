@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "221011508542",
+    "project_id": "tms-flutter-49dda",
+    "storage_bucket": "tms-flutter-49dda.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:221011508542:android:bf99a3481d7867778e806f",
+        "android_client_info": {
+          "package_name": "com.example.tms"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB5KburKahZBCaNElUvhapZy95Wlzy-RLI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

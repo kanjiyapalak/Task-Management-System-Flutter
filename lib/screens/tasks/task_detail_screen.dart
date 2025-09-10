@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/task.dart';
-import '../../services/task_service.dart';
+import '../../services/firebase_task_provider.dart';
 
 class TaskDetailScreen extends StatefulWidget {
   final Task task;
@@ -13,7 +14,6 @@ class TaskDetailScreen extends StatefulWidget {
 }
 
 class _TaskDetailScreenState extends State<TaskDetailScreen> {
-  final TaskService _taskService = TaskService();
   late Task _task;
   bool _isLoading = false;
 
@@ -25,18 +25,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
 
   Future<void> _updateTaskStatus(TaskStatus newStatus) async {
     setState(() => _isLoading = true);
-
-    final result = await _taskService.updateTaskStatus(_task.id, newStatus);
-
+    final provider = Provider.of<TaskProvider>(context, listen: false);
+    final ok = await provider.updateStatus(_task.id, newStatus);
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (result['success']) {
+    if (ok) {
       setState(() {
         _task = _task.copyWith(status: newStatus);
       });
-
-      // Return the updated task to the previous screen
-      Navigator.of(context).pop(_task);
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -46,24 +43,27 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result['message']), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('Failed to update task'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
 
   Future<void> _deleteTask() async {
-    final confirmed = await showDialog<bool>(
+    final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (c) => AlertDialog(
         title: const Text('Delete Task'),
         content: Text('Are you sure you want to delete "${_task.title}"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => Navigator.pop(c, false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => Navigator.pop(c, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
           ),
@@ -71,29 +71,33 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
       ),
     );
 
-    if (confirmed == true) {
+    if (!mounted) return;
+    if (confirm == true) {
       setState(() => _isLoading = true);
+      final provider = Provider.of<TaskProvider>(context, listen: false);
+      final ok = await provider.deleteTask(_task.id);
 
-      final result = await _taskService.deleteTask(_task.id);
-
-      if (result['success']) {
-        Navigator.of(
-          context,
-        ).pop(true); // Return true to indicate task was deleted
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Task deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (ok) {
+        if (mounted) {
+          Navigator.of(context).pop(true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Task deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       } else {
+        if (!mounted) return;
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: Colors.red,
-          ),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to delete task'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -116,20 +120,16 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         actions: [
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: Colors.black),
-            onSelected: (value) {
-              switch (value) {
-                case 'edit':
-                  // TODO: Navigate to edit task screen
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Edit feature coming soon!')),
-                  );
-                  break;
-                case 'delete':
-                  _deleteTask();
-                  break;
+            onSelected: (v) {
+              if (v == 'delete') {
+                _deleteTask();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Edit feature coming soon!')),
+                );
               }
             },
-            itemBuilder: (context) => [
+            itemBuilder: (c) => [
               const PopupMenuItem(
                 value: 'edit',
                 child: Row(
@@ -242,7 +242,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                                 decoration: BoxDecoration(
                                   color: Theme.of(
                                     context,
-                                  ).primaryColor.withOpacity(0.1),
+                                  ).primaryColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
@@ -357,7 +357,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -434,9 +434,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -481,9 +481,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

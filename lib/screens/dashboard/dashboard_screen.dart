@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/task.dart';
-import '../../services/auth_provider.dart';
-import '../../services/task_service.dart';
+import '../../services/firebase_auth_provider.dart';
 import '../../services/project_service.dart';
+import '../../services/firebase_task_provider.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/task_list_screen.dart';
 import '../tasks/create_task_screen.dart';
@@ -20,55 +20,39 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final TaskService _taskService = TaskService();
   final ProjectService _projectService = ProjectService();
-  List<Task> _tasks = [];
-  Map<String, int> _taskStats = {};
   Map<String, int> _projectStats = {};
-  bool _isLoading = true;
   int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadDashboardData();
+    _loadProjects();
   }
 
-  Future<void> _loadDashboardData() async {
-    setState(() => _isLoading = true);
-
+  Future<void> _loadProjects() async {
     try {
-      final tasks = await _taskService.getTasks();
-      final taskStats = await _taskService.getTaskStats();
-      final projectStats = await _projectService.getProjectStats();
+      final stats = await _projectService.getProjectStats();
+      if (mounted) {
+        setState(() => _projectStats = stats);
+      }
+    } finally {}
+  }
 
-      if (mounted) {
-        setState(() {
-          _tasks = tasks;
-          _taskStats = taskStats;
-          _projectStats = projectStats;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading dashboard data: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+  Future<void> _refreshAll() async {
+    await Provider.of<TaskProvider>(context, listen: false).loadTasks();
+    await _loadProjects();
   }
 
   @override
   Widget build(BuildContext context) {
+    final taskProvider = Provider.of<TaskProvider>(context);
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: _buildAppBar(),
-      body: _isLoading ? _buildLoadingWidget() : _buildBody(),
+      body: _selectedIndex == 0
+          ? _buildDashboardContent(taskProvider)
+          : _buildBodyByIndex(),
       bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
@@ -81,92 +65,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Consumer<AuthProvider>(
-            builder: (context, authProvider, child) {
-              return Text(
-                'Welcome, ${authProvider.currentUser?.firstName ?? 'User'}',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              );
-            },
+            builder: (context, authProvider, child) => Text(
+              'Welcome, ${authProvider.currentUser?.firstName ?? 'User'}',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
           ),
         ],
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: Colors.black),
-          onPressed: () {
-            // TODO: Implement notifications
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Notifications coming soon!')),
-            );
-          },
+          icon: const Icon(Icons.refresh, color: Colors.black),
+          onPressed: _refreshAll,
         ),
         Consumer<AuthProvider>(
-          builder: (context, authProvider, child) {
-            return GestureDetector(
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const ProfileScreen(),
-                  ),
-                );
-              },
-              child: Container(
-                margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
-                child: CircleAvatar(
-                  backgroundColor: Theme.of(context).primaryColor,
-                  child: Text(
-                    authProvider.currentUser?.firstName
-                            .substring(0, 1)
-                            .toUpperCase() ??
-                        'U',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
+          builder: (context, authProvider, child) => GestureDetector(
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+            child: Container(
+              margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+              child: CircleAvatar(
+                backgroundColor: Theme.of(context).primaryColor,
+                child: Text(
+                  authProvider.currentUser?.firstName
+                          .substring(0, 1)
+                          .toUpperCase() ??
+                      'U',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildLoadingWidget() {
-    return const Center(child: CircularProgressIndicator());
-  }
-
-  Widget _buildBody() {
-    switch (_selectedIndex) {
-      case 0:
-        return _buildDashboardContent();
-      case 1:
-        return _buildTasksContent();
-      case 2:
-        return _buildProjectsContent();
-      case 3:
-        return _buildProfileContent();
-      default:
-        return _buildDashboardContent();
-    }
-  }
-
-  Widget _buildDashboardContent() {
+  Widget _buildDashboardContent(TaskProvider taskProvider) {
     return RefreshIndicator(
-      onRefresh: _loadDashboardData,
+      onRefresh: _refreshAll,
       child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildStatsCards(),
+            _buildStatsCards(taskProvider),
             const SizedBox(height: 24),
-            _buildRecentTasks(),
+            _buildRecentTasks(taskProvider),
             const SizedBox(height: 24),
             _buildQuickActions(),
           ],
@@ -175,20 +128,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildStatsCards() {
+  Widget _buildStatsCards(TaskProvider taskProvider) {
+    final taskStats = taskProvider.stats;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Overview',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        // Task Statistics
         const Text(
           'Tasks',
           style: TextStyle(
@@ -203,7 +152,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Total',
-                _taskStats['total']?.toString() ?? '0',
+                (taskStats['total'] ?? 0).toString(),
                 Icons.assignment,
                 Colors.blue,
               ),
@@ -212,7 +161,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'In Progress',
-                _taskStats['inProgress']?.toString() ?? '0',
+                (taskStats['inProgress'] ?? 0).toString(),
                 Icons.hourglass_empty,
                 Colors.orange,
               ),
@@ -225,7 +174,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Completed',
-                _taskStats['completed']?.toString() ?? '0',
+                (taskStats['completed'] ?? 0).toString(),
                 Icons.check_circle,
                 Colors.green,
               ),
@@ -234,7 +183,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Overdue',
-                _taskStats['overdue']?.toString() ?? '0',
+                (taskStats['overdue'] ?? 0).toString(),
                 Icons.warning,
                 Colors.red,
               ),
@@ -242,7 +191,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        // Project Statistics
         const Text(
           'Projects',
           style: TextStyle(
@@ -257,7 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Total',
-                _projectStats['total']?.toString() ?? '0',
+                (_projectStats['total'] ?? 0).toString(),
                 Icons.folder,
                 Colors.indigo,
               ),
@@ -266,7 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Active',
-                _projectStats['active']?.toString() ?? '0',
+                (_projectStats['active'] ?? 0).toString(),
                 Icons.play_circle,
                 Colors.green,
               ),
@@ -279,7 +227,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Planning',
-                _projectStats['planning']?.toString() ?? '0',
+                (_projectStats['planning'] ?? 0).toString(),
                 Icons.lightbulb,
                 Colors.orange,
               ),
@@ -288,7 +236,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'On Hold',
-                _projectStats['onHold']?.toString() ?? '0',
+                (_projectStats['onHold'] ?? 0).toString(),
                 Icons.pause_circle,
                 Colors.amber,
               ),
@@ -311,10 +259,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.1), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.1), width: 1),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -328,7 +276,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: color, size: 20),
@@ -362,9 +310,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildRecentTasks() {
-    final recentTasks = _tasks.take(5).toList();
-
+  Widget _buildRecentTasks(TaskProvider taskProvider) {
+    final recentTasks = [...taskProvider.tasks]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt))
+      ..take(5);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -372,122 +321,118 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             const Text(
               'Recent Tasks',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             const Spacer(),
             TextButton(
-              onPressed: () {
-                setState(() => _selectedIndex = 1);
-              },
+              onPressed: () => setState(() => _selectedIndex = 1),
               child: const Text('View All'),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         if (recentTasks.isEmpty)
           Container(
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
             ),
-            child: const Center(
-              child: Text('No tasks found. Create your first task!'),
+            child: Column(
+              children: [
+                Icon(Icons.inbox, size: 48, color: Colors.grey[400]),
+                const SizedBox(height: 12),
+                Text(
+                  'No tasks yet',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           )
         else
-          ...recentTasks.map((task) => _buildTaskCard(task)),
+          ...recentTasks.map(_buildTaskCard),
       ],
     );
   }
 
   Widget _buildTaskCard(Task task) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.white,
+      elevation: 2,
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        elevation: 2,
-        shadowColor: Colors.black.withOpacity(0.1),
-        child: InkWell(
-          onTap: () async {
-            final result = await Navigator.of(context).push<dynamic>(
-              MaterialPageRoute(
-                builder: (context) => TaskDetailScreen(task: task),
-              ),
-            );
-            
-            // If task was updated or deleted, refresh the dashboard
-            if (result != null) {
-              _loadDashboardData();
-            }
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        task.title,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
+        onTap: () async {
+          final result = await Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task)),
+          );
+          if (!mounted) return;
+          if (result != null) {
+            Provider.of<TaskProvider>(context, listen: false).loadTasks();
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      task.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    _buildPriorityChip(task.priority),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  task.description,
-                  style: TextStyle(
-                    fontSize: 14, 
-                    color: Colors.grey[600],
-                    height: 1.4,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildStatusChip(task.status),
-                    const Spacer(),
-                    if (task.dueDate != null) ...[
-                      Icon(
-                        Icons.schedule,
-                        size: 14,
-                        color: task.dueDate!.isBefore(DateTime.now())
-                            ? Colors.red
-                            : Colors.grey[600],
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Due ${DateFormat.MMMd().format(task.dueDate!)}',
-                        style: TextStyle(
-                          fontSize: 12,
+                  _buildPriorityChip(task.priority),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                task.description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildStatusChip(task.status),
+                  const Spacer(),
+                  if (task.dueDate != null)
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.schedule,
+                          size: 14,
                           color: task.dueDate!.isBefore(DateTime.now())
                               ? Colors.red
                               : Colors.grey[600],
-                          fontWeight: FontWeight.w500,
                         ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Due ${DateFormat.MMMd().format(task.dueDate!)}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: task.dueDate!.isBefore(DateTime.now())
+                                ? Colors.red
+                                : Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -497,24 +442,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildPriorityChip(TaskPriority priority) {
     Color color;
     switch (priority) {
-      case TaskPriority.urgent:
-        color = Colors.red;
-        break;
-      case TaskPriority.high:
-        color = Colors.orange;
+      case TaskPriority.low:
+        color = Colors.green;
         break;
       case TaskPriority.medium:
         color = Colors.blue;
         break;
-      case TaskPriority.low:
-        color = Colors.green;
+      case TaskPriority.high:
+        color = Colors.orange;
+        break;
+      case TaskPriority.urgent:
+        color = Colors.red;
         break;
     }
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -544,11 +488,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         color = Colors.red;
         break;
     }
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -568,11 +511,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         const Text(
           'Quick Actions',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
         Row(
@@ -584,12 +523,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Colors.blue,
                 () async {
                   final result = await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const CreateTaskScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const CreateTaskScreen()),
                   );
+                  if (!mounted) return;
                   if (result == true) {
-                    _loadDashboardData(); // Refresh dashboard data
+                    Provider.of<TaskProvider>(
+                      context,
+                      listen: false,
+                    ).loadTasks();
                   }
                 },
               ),
@@ -602,9 +543,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Colors.green,
                 () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const CalendarScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const CalendarScreen()),
                   );
                 },
               ),
@@ -621,43 +560,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color color,
     VoidCallback onTap,
   ) {
-    return Material(
-      color: Colors.transparent,
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
-        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+        onTap: onTap,
+        child: Padding(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                color.withOpacity(0.1),
-                color.withOpacity(0.05),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withOpacity(0.2)),
-            boxShadow: [
-              BoxShadow(
-                color: color.withOpacity(0.1),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
           child: Column(
             children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(icon, color: color, size: 28),
-              ),
+              Icon(icon, color: color, size: 28),
               const SizedBox(height: 12),
               Text(
                 title,
@@ -674,24 +586,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildTasksContent() {
-    return const TaskListScreen();
-  }
-
-  Widget _buildProjectsContent() {
-    return const ProjectsScreen();
-  }
-
-  Widget _buildProfileContent() {
-    return const ProfileScreen();
+  Widget _buildBodyByIndex() {
+    switch (_selectedIndex) {
+      case 1:
+        return const TaskListScreen();
+      case 2:
+        return const ProjectsScreen();
+      case 3:
+        return const ProfileScreen();
+      default:
+        return const SizedBox();
+    }
   }
 
   Widget _buildBottomNavigationBar() {
     return BottomNavigationBar(
       currentIndex: _selectedIndex,
-      onTap: (index) {
-        setState(() => _selectedIndex = index);
-      },
+      onTap: (index) => setState(() => _selectedIndex = index),
       type: BottomNavigationBarType.fixed,
       items: const [
         BottomNavigationBarItem(

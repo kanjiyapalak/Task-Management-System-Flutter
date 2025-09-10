@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/task.dart';
-import '../../services/task_service.dart';
+import '../../services/firebase_task_provider.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
 
@@ -16,11 +17,9 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final TaskService _taskService = TaskService();
-
   TaskPriority _selectedPriority = TaskPriority.medium;
   DateTime? _dueDate;
-  List<String> _tags = [];
+  final List<String> _tags = [];
   final _tagController = TextEditingController();
   bool _isLoading = false;
 
@@ -39,13 +38,14 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
+    if (!mounted) return;
 
     if (picked != null) {
       final TimeOfDay? time = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.now(),
       );
-
+      if (!mounted) return;
       if (time != null) {
         setState(() {
           _dueDate = DateTime(
@@ -79,7 +79,8 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
 
-      final result = await _taskService.createTask(
+      final provider = Provider.of<TaskProvider>(context, listen: false);
+      final ok = await provider.createTask(
         title: _titleController.text.trim(),
         description: _descriptionController.text.trim(),
         priority: _selectedPriority,
@@ -90,20 +91,18 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
       setState(() => _isLoading = false);
 
       if (mounted) {
-        if (result['success']) {
+        if (ok) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
+            const SnackBar(
+              content: Text('Task created'),
               backgroundColor: Colors.green,
             ),
           );
-          Navigator.of(
-            context,
-          ).pop(true); // Return true to indicate task was created
+          Navigator.of(context).pop(true);
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
+            const SnackBar(
+              content: Text('Failed to create task'),
               backgroundColor: Colors.red,
             ),
           );
@@ -125,78 +124,85 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: Form(
-        key: _formKey,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Task Title
-              CustomTextField(
-                label: 'Task Title',
-                hintText: 'Enter task title',
-                controller: _titleController,
-                prefixIcon: const Icon(Icons.title),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a task title';
-                  }
-                  if (value.length < 3) {
-                    return 'Title must be at least 3 characters';
-                  }
-                  return null;
-                },
-              ),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Task Title
+                CustomTextField(
+                  label: 'Task Title',
+                  hintText: 'Enter task title',
+                  controller: _titleController,
+                  prefixIcon: const Icon(Icons.title),
+                  autofocus: true,
+                  textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a task title';
+                    }
+                    if (value.length < 3) {
+                      return 'Title must be at least 3 characters';
+                    }
+                    return null;
+                  },
+                ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Task Description
-              CustomTextField(
-                label: 'Description',
-                hintText: 'Enter task description',
-                controller: _descriptionController,
-                prefixIcon: const Icon(Icons.description),
-                maxLines: 4,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a task description';
-                  }
-                  if (value.length < 10) {
-                    return 'Description must be at least 10 characters';
-                  }
-                  return null;
-                },
-              ),
+                // Task Description
+                CustomTextField(
+                  label: 'Description',
+                  hintText: 'Enter task description',
+                  controller: _descriptionController,
+                  prefixIcon: const Icon(Icons.description),
+                  maxLines: 4,
+                  keyboardType: TextInputType.multiline,
+                  textInputAction: TextInputAction.newline,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter a task description';
+                    }
+                    if (value.length < 10) {
+                      return 'Description must be at least 10 characters';
+                    }
+                    return null;
+                  },
+                ),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Priority Selection
-              _buildPrioritySection(),
+                // Priority Selection
+                _buildPrioritySection(),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Due Date
-              _buildDueDateSection(),
+                // Due Date
+                _buildDueDateSection(),
 
-              const SizedBox(height: 20),
+                const SizedBox(height: 20),
 
-              // Tags
-              _buildTagsSection(),
+                // Tags
+                _buildTagsSection(),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 40),
 
-              // Create Button
-              CustomButton(
-                text: 'Create Task',
-                onPressed: _createTask,
-                isLoading: _isLoading,
-                icon: const Icon(Icons.add, color: Colors.white),
-              ),
-            ],
-          ),
-        ),
-      ),
+                // Create Button
+                CustomButton(
+                  text: 'Create Task',
+                  onPressed: _createTask,
+                  isLoading: _isLoading,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                ),
+              ],
+            ),
+          ), // end SingleChildScrollView
+        ), // end Form
+      ), // end GestureDetector body
     );
   }
 
@@ -359,7 +365,7 @@ class _CreateTaskScreenState extends State<CreateTaskScreen> {
                     label: Text(tag),
                     backgroundColor: Theme.of(
                       context,
-                    ).primaryColor.withOpacity(0.1),
+                    ).primaryColor.withValues(alpha: 0.1),
                     deleteIcon: const Icon(Icons.close, size: 16),
                     onDeleted: () => _removeTag(tag),
                     labelStyle: TextStyle(

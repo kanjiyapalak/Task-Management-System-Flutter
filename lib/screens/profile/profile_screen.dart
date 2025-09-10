@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../../services/auth_provider.dart';
+import '../../services/firebase_auth_provider.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
 import '../auth/login_screen.dart';
@@ -72,6 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         imageQuality: 80,
       );
 
+      if (!mounted) return;
       if (image != null) {
         setState(() {
           _selectedImage = File(image.path);
@@ -97,7 +98,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         profileImageUrl:
             _selectedImage?.path, // In a real app, upload to server first
       );
-
+      if (!mounted) return;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -117,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         currentPassword: _currentPasswordController.text,
         newPassword: _newPasswordController.text,
       );
-
+      if (!mounted) return;
       if (mounted) {
         if (result['success']) {
           _currentPasswordController.clear();
@@ -154,15 +155,14 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
 
+    if (!mounted) return;
     if (shouldLogout == true) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       await authProvider.logout();
-
-      if (mounted) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+      );
     }
   }
 
@@ -223,7 +223,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -368,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -442,7 +442,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha: 0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   ),
@@ -544,7 +544,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),

@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
-import 'services/auth_provider.dart';
-import 'screens/auth/login_screen.dart';
+import 'firebase_options.dart';
+import 'services/firebase_task_provider.dart';
+import 'services/firebase_auth_provider.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/auth/login_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(const MyApp());
 }
 
@@ -14,20 +22,18 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
-      providers: [ChangeNotifierProvider(create: (context) => AuthProvider())],
+      providers: [
+        ChangeNotifierProvider(create: (context) => TaskProvider()),
+        ChangeNotifierProvider(create: (context) => AuthProvider()),
+      ],
       child: MaterialApp(
         title: 'Task Management System',
-        debugShowCheckedModeBanner: false,
         theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF6366F1), // Indigo color
-            brightness: Brightness.light,
-          ),
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
-          fontFamily: 'Roboto',
-          appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
         ),
         home: const AuthWrapper(),
+        debugShowCheckedModeBanner: false,
       ),
     );
   }
@@ -44,7 +50,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // Initialize authentication state
+    // Initialize the auth provider when the app starts
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AuthProvider>(context, listen: false).initialize();
     });
@@ -54,26 +60,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, child) {
+        // Show loading screen while checking authentication
         if (authProvider.isLoading) {
           return const Scaffold(
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Loading...'),
-                ],
-              ),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (authProvider.isAuthenticated) {
-          return const DashboardScreen();
-        } else {
-          return const LoginScreen();
-        }
+        // Show appropriate screen based on authentication state
+        return authProvider.isAuthenticated
+            ? const DashboardScreen()
+            : const LoginScreen();
       },
     );
   }

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/task.dart';
-import '../../services/task_service.dart';
+import '../../services/firebase_task_provider.dart';
 import '../../widgets/task_card.dart';
 import '../tasks/task_detail_screen.dart';
 
@@ -13,66 +14,26 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
-  final TaskService _taskService = TaskService();
-  List<Task> _allTasks = [];
-  List<Task> _tasksForSelectedDate = [];
   DateTime _selectedDate = DateTime.now();
   DateTime _currentMonth = DateTime.now();
-  bool _isLoading = true;
+  static const String _layoutVersion = 'v2-responsive';
 
   @override
   void initState() {
     super.initState();
-    _loadTasks();
   }
 
-  Future<void> _loadTasks() async {
-    setState(() => _isLoading = true);
-    try {
-      final tasks = await _taskService.getTasks();
-      setState(() {
-        _allTasks = tasks;
-        _filterTasksForDate(_selectedDate);
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading tasks: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
+  List<Task> _tasksForDate(List<Task> all, DateTime date) => all
+      .where((t) => t.dueDate != null && DateUtils.isSameDay(t.dueDate!, date))
+      .toList();
 
-  void _filterTasksForDate(DateTime date) {
+  bool _hasTasksOnDate(List<Task> all, DateTime date) =>
+      _tasksForDate(all, date).isNotEmpty;
+
+  void _onDateSelected(DateTime d) {
     setState(() {
-      _tasksForSelectedDate = _allTasks.where((task) {
-        if (task.dueDate == null) return false;
-        return DateUtils.isSameDay(task.dueDate!, date);
-      }).toList();
+      _selectedDate = d;
     });
-  }
-
-  List<Task> _getTasksForDate(DateTime date) {
-    return _allTasks.where((task) {
-      if (task.dueDate == null) return false;
-      return DateUtils.isSameDay(task.dueDate!, date);
-    }).toList();
-  }
-
-  bool _hasTasksOnDate(DateTime date) {
-    return _getTasksForDate(date).isNotEmpty;
-  }
-
-  void _onDateSelected(DateTime date) {
-    setState(() {
-      _selectedDate = date;
-    });
-    _filterTasksForDate(date);
   }
 
   void _previousMonth() {
@@ -93,128 +54,124 @@ class _CalendarScreenState extends State<CalendarScreen> {
       _currentMonth = today;
       _selectedDate = today;
     });
-    _filterTasksForDate(today);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'Calendar',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-        ),
-        actions: [
-          TextButton(onPressed: _goToToday, child: const Text('Today')),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Calendar header
-                Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      IconButton(
-                        onPressed: _previousMonth,
-                        icon: const Icon(Icons.chevron_left),
-                      ),
-                      Text(
-                        DateFormat.yMMMM().format(_currentMonth),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: _nextMonth,
-                        icon: const Icon(Icons.chevron_right),
-                      ),
-                    ],
-                  ),
-                ),
+    // Debug marker so you can verify the updated file is active.
+    // ignore: avoid_print
+    print('CalendarScreen build -> layout: $_layoutVersion');
 
-                // Calendar grid
-                Expanded(
-                  child: Row(
-                    children: [
-                      // Calendar view
-                      Expanded(
-                        flex: 2,
-                        child: Container(
-                          color: Colors.white,
-                          child: _buildCalendarGrid(),
-                        ),
-                      ),
-
-                      // Tasks for selected date
-                      Expanded(
-                        flex: 1,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            border: Border(
-                              left: BorderSide(color: Colors.grey[300]!),
-                            ),
-                          ),
-                          child: _buildTasksList(),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    // Use a simple widget without Provider to test basic functionality
+    return Consumer<TaskProvider>(
+      builder: (context, provider, _) {
+        final all = provider.tasks;
+        final tasksForSelected = _tasksForDate(all, _selectedDate);
+        return Scaffold(
+          backgroundColor: Colors.grey[50],
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            title: const Text(
+              'Calendar',
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+            actions: [
+              TextButton(onPressed: _goToToday, child: const Text('Today')),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.black),
+                onPressed: () => provider.loadTasks(),
+              ),
+            ],
+          ),
+          body: provider.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
+                  children: [
+                    _buildHeaderBar(),
+                    Container(
+                      color: Colors.white,
+                      height: 320,
+                      child: _buildCalendarGrid(all),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(24),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.05),
+                              blurRadius: 8,
+                              offset: const Offset(0, -2),
+                            ),
+                          ],
+                        ),
+                        child: _buildTasksList(tasksForSelected),
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 
-  Widget _buildCalendarGrid() {
-    final firstDayOfMonth = DateTime(
-      _currentMonth.year,
-      _currentMonth.month,
-      1,
-    );
-    final lastDayOfMonth = DateTime(
-      _currentMonth.year,
-      _currentMonth.month + 1,
-      0,
-    );
-    final startDate = firstDayOfMonth.subtract(
-      Duration(days: firstDayOfMonth.weekday - 1),
-    );
-    final endDate = lastDayOfMonth.add(
-      Duration(days: 7 - lastDayOfMonth.weekday),
-    );
+  Widget _buildHeaderBar() => Container(
+    color: Colors.white,
+    padding: const EdgeInsets.all(16),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        IconButton(
+          onPressed: _previousMonth,
+          icon: const Icon(Icons.chevron_left),
+        ),
+        Text(
+          DateFormat.yMMMM().format(_currentMonth),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        IconButton(
+          onPressed: _nextMonth,
+          icon: const Icon(Icons.chevron_right),
+        ),
+      ],
+    ),
+  );
+
+  Widget _buildCalendarGrid(List<Task> all) {
+    final first = DateTime(_currentMonth.year, _currentMonth.month, 1);
+    final last = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+    final start = first.subtract(Duration(days: first.weekday - 1));
+    final end = last.add(Duration(days: 7 - last.weekday));
 
     final days = <DateTime>[];
     for (
-      var day = startDate;
-      day.isBefore(endDate) || day.isAtSameMomentAs(endDate);
-      day = day.add(const Duration(days: 1))
+      var d = start;
+      d.isBefore(end) || d.isAtSameMomentAs(end);
+      d = d.add(const Duration(days: 1))
     ) {
-      days.add(day);
+      days.add(d);
     }
 
     return Column(
       children: [
         // Weekday headers
-        Container(
+        SizedBox(
           height: 40,
           child: Row(
             children: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
                 .map(
-                  (day) => Expanded(
-                    child: Container(
-                      alignment: Alignment.center,
+                  (wd) => Expanded(
+                    child: Center(
                       child: Text(
-                        day,
+                        wd,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: Colors.grey[600],
@@ -238,25 +195,25 @@ class _CalendarScreenState extends State<CalendarScreen> {
               mainAxisSpacing: 4,
             ),
             itemCount: days.length,
-            itemBuilder: (context, index) {
-              final day = days[index];
-              final isCurrentMonth = day.month == _currentMonth.month;
+            itemBuilder: (c, i) {
+              final day = days[i];
+              final isCurrent = day.month == _currentMonth.month;
               final isSelected = DateUtils.isSameDay(day, _selectedDate);
               final isToday = DateUtils.isSameDay(day, DateTime.now());
-              final hasTasks = _hasTasksOnDate(day);
+              final has = _hasTasksOnDate(all, day);
 
               return GestureDetector(
                 onTap: () => _onDateSelected(day),
                 child: Container(
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Theme.of(context).primaryColor
+                        ? Theme.of(c).primaryColor
                         : isToday
-                        ? Theme.of(context).primaryColor.withOpacity(0.1)
+                        ? Theme.of(c).primaryColor.withValues(alpha: 0.1)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     border: isToday && !isSelected
-                        ? Border.all(color: Theme.of(context).primaryColor)
+                        ? Border.all(color: Theme.of(c).primaryColor)
                         : null,
                   ),
                   child: Stack(
@@ -267,7 +224,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           style: TextStyle(
                             color: isSelected
                                 ? Colors.white
-                                : isCurrentMonth
+                                : isCurrent
                                 ? Colors.black
                                 : Colors.grey,
                             fontWeight: isToday
@@ -276,7 +233,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           ),
                         ),
                       ),
-                      if (hasTasks)
+                      if (has)
                         Positioned(
                           bottom: 4,
                           right: 4,
@@ -286,7 +243,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? Colors.white
-                                  : Theme.of(context).primaryColor,
+                                  : Theme.of(c).primaryColor,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -302,19 +259,46 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _buildTasksList() {
+  Widget _buildTasksList(List<Task> tasksForSelected) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.all(16),
-          child: Text(
-            DateFormat.yMMMEd().format(_selectedDate),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  DateFormat.yMMMEd().format(_selectedDate),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: Text(
+                  '${tasksForSelected.length} task${tasksForSelected.length == 1 ? '' : 's'}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
-          child: _tasksForSelectedDate.isEmpty
+          child: tasksForSelected.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -333,19 +317,18 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _tasksForSelectedDate.length,
-                  itemBuilder: (context, index) {
-                    final task = _tasksForSelectedDate[index];
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  itemCount: tasksForSelected.length,
+                  itemBuilder: (c, i) {
+                    final task = tasksForSelected[i];
                     return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
+                      margin: const EdgeInsets.only(bottom: 10),
                       child: TaskCard(
                         task: task,
                         onTap: () {
-                          Navigator.of(context).push(
+                          Navigator.of(c).push(
                             MaterialPageRoute(
-                              builder: (context) =>
-                                  TaskDetailScreen(task: task),
+                              builder: (_) => TaskDetailScreen(task: task),
                             ),
                           );
                         },

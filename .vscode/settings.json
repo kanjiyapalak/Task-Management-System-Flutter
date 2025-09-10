@@ -1,3 +1,4 @@
 {
-  "cmake.sourceDirectory": "D:/flutter projects/tms/linux"
+  "cmake.sourceDirectory": "D:/flutter projects/tms/linux",
+  "java.configuration.updateBuildConfiguration": "automatic"
 }

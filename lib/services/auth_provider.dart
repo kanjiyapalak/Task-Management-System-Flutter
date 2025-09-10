@@ -142,4 +142,40 @@ class AuthProvider extends ChangeNotifier {
       };
     }
   }
+
+  Future<Map<String, dynamic>> forgotPassword({required String email}) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final result = await _authService.forgotPassword(email: email);
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return {'success': false, 'message': 'Request failed: ${e.toString()}'};
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String tokenOrCode,
+    required String newPassword,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final result = await _authService.resetPassword(
+        tokenOrCode: tokenOrCode,
+        newPassword: newPassword,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return {'success': false, 'message': 'Reset failed: ${e.toString()}'};
+    }
+  }
 }

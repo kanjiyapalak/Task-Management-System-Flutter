@@ -225,4 +225,54 @@ class AuthService {
       await prefs.setString(userKey, jsonEncode(_currentUser!.toJson()));
     }
   }
+
+  // Forgot password (request reset link / code)
+  Future<Map<String, dynamic>> forgotPassword({required String email}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Reset link sent to your email',
+        };
+      }
+      return {'success': false, 'message': data['message'] ?? 'Request failed'};
+    } catch (e) {
+      // Demo fallback: pretend email sent
+      return {
+        'success': true,
+        'message': 'If an account exists, a reset link has been sent.',
+      };
+    }
+  }
+
+  // Reset password (using token/code)
+  Future<Map<String, dynamic>> resetPassword({
+    required String tokenOrCode,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'token': tokenOrCode, 'newPassword': newPassword}),
+      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': data['message'] ?? 'Password reset successfully',
+        };
+      }
+      return {'success': false, 'message': data['message'] ?? 'Reset failed'};
+    } catch (e) {
+      // Demo fallback
+      return {'success': true, 'message': 'Password reset successfully (demo)'};
+    }
+  }
 }

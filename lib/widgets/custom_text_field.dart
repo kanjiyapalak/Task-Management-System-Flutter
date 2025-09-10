@@ -11,6 +11,8 @@ class CustomTextField extends StatefulWidget {
   final Widget? suffixIcon;
   final bool enabled;
   final int? maxLines;
+  final bool autofocus;
+  final TextInputAction? textInputAction;
 
   const CustomTextField({
     super.key,
@@ -24,6 +26,8 @@ class CustomTextField extends StatefulWidget {
     this.suffixIcon,
     this.enabled = true,
     this.maxLines = 1,
+    this.autofocus = false,
+    this.textInputAction,
   });
 
   @override
@@ -53,6 +57,8 @@ class _CustomTextFieldState extends State<CustomTextField> {
           enabled: widget.enabled,
           maxLines: widget.isPassword ? 1 : widget.maxLines,
           obscureText: widget.isPassword ? _obscureText : false,
+          autofocus: widget.autofocus,
+          textInputAction: widget.textInputAction,
           decoration: InputDecoration(
             hintText: widget.hintText,
             prefixIcon: widget.prefixIcon,
