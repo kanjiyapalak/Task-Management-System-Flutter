@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'services/firebase_task_provider.dart';
 import 'services/firebase_auth_provider.dart';
+import 'services/project_provider.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/auth/login_screen.dart';
 
@@ -12,6 +14,8 @@ void main() async {
 
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // For debugging: ensure Firestore writes go to the server (no offline-only cache)
+  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: false);
 
   runApp(const MyApp());
 }
@@ -25,6 +29,13 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (context) => TaskProvider()),
         ChangeNotifierProvider(create: (context) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, ProjectProvider>(
+          create: (context) => ProjectProvider(
+            authProvider: Provider.of<AuthProvider>(context, listen: false),
+          ),
+          update: (context, auth, previous) =>
+              previous ?? ProjectProvider(authProvider: auth),
+        ),
       ],
       child: MaterialApp(
         title: 'Task Management System',

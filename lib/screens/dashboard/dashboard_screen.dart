@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../models/task.dart';
 import '../../services/firebase_auth_provider.dart';
-import '../../services/project_service.dart';
 import '../../services/firebase_task_provider.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/task_list_screen.dart';
@@ -11,6 +10,8 @@ import '../tasks/create_task_screen.dart';
 import '../tasks/task_detail_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../projects/projects_screen.dart';
+import '../../services/project_provider.dart';
+import '../../models/project_invite.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -20,8 +21,6 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final ProjectService _projectService = ProjectService();
-  Map<String, int> _projectStats = {};
   int _selectedIndex = 0;
 
   @override
@@ -31,12 +30,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadProjects() async {
-    try {
-      final stats = await _projectService.getProjectStats();
-      if (mounted) {
-        setState(() => _projectStats = stats);
-      }
-    } finally {}
+    // Refresh provider from backend so stats and lists stay in sync
+    await Provider.of<ProjectProvider>(context, listen: false).refresh();
   }
 
   Future<void> _refreshAll() async {
@@ -117,6 +112,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildInvitesInbox(),
+            const SizedBox(height: 24),
             _buildStatsCards(taskProvider),
             const SizedBox(height: 24),
             _buildRecentTasks(taskProvider),
@@ -128,7 +125,73 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildInvitesInbox() {
+    return Consumer<ProjectProvider>(
+      builder: (context, prov, _) {
+        return FutureBuilder(
+          future: prov.fetchMyInvites(),
+          builder: (context, snapshot) {
+            final invites = snapshot.data ?? [];
+            final pending = invites.where((i) => i.status == InviteStatus.pending).toList();
+            if (pending.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pending Project Invites',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                ...pending.map((inv) => Card(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: const Icon(Icons.mail_outline),
+                        title: Text(inv.email),
+                        subtitle: const Text('You have been invited to join a project'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () async {
+                                final ok = await prov.respondToInvite(inviteId: inv.id, accept: true);
+                                if (!mounted) return;
+                                if (ok) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Invite accepted')),
+                                  );
+                                  _loadProjects();
+                                }
+                              },
+                              child: const Text('Accept'),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: () async {
+                                final ok = await prov.respondToInvite(inviteId: inv.id, accept: false);
+                                if (!mounted) return;
+                                if (ok) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Invite declined')),
+                                  );
+                                }
+                              },
+                              child: const Text('Decline'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildStatsCards(TaskProvider taskProvider) {
+    final projectStats = Provider.of<ProjectProvider>(context).stats;
     final taskStats = taskProvider.stats;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Total',
-                (_projectStats['total'] ?? 0).toString(),
+                (projectStats['total'] ?? 0).toString(),
                 Icons.folder,
                 Colors.indigo,
               ),
@@ -214,7 +277,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Active',
-                (_projectStats['active'] ?? 0).toString(),
+                (projectStats['active'] ?? 0).toString(),
                 Icons.play_circle,
                 Colors.green,
               ),
@@ -227,7 +290,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'Planning',
-                (_projectStats['planning'] ?? 0).toString(),
+                (projectStats['planning'] ?? 0).toString(),
                 Icons.lightbulb,
                 Colors.orange,
               ),
@@ -236,7 +299,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: _buildStatCard(
                 'On Hold',
-                (_projectStats['onHold'] ?? 0).toString(),
+                (projectStats['onHold'] ?? 0).toString(),
                 Icons.pause_circle,
                 Colors.amber,
               ),

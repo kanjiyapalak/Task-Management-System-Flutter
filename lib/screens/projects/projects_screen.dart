@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../models/project.dart';
-import '../../services/project_service.dart';
+import '../../services/project_provider.dart';
+import 'create_project_screen.dart';
+import 'project_dashboard_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key});
@@ -11,44 +14,22 @@ class ProjectsScreen extends StatefulWidget {
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
-  final ProjectService _projectService = ProjectService();
-  List<Project> _projects = [];
-  Map<String, int> _projectStats = {};
-  bool _isLoading = true;
   ProjectStatus? _selectedStatus;
 
   @override
   void initState() {
     super.initState();
-    _loadProjects();
-  }
-
-  Future<void> _loadProjects() async {
-    setState(() => _isLoading = true);
-    try {
-      final projects = await _projectService.getProjects();
-      final stats = await _projectService.getProjectStats();
-      setState(() {
-        _projects = projects;
-        _projectStats = stats;
-        _isLoading = false;
-      });
-    } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error loading projects: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
+    // Load projects from backend
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<ProjectProvider>(context, listen: false).refresh();
+    });
   }
 
   List<Project> get _filteredProjects {
-    if (_selectedStatus == null) return _projects;
-    return _projects
+    final prov = Provider.of<ProjectProvider>(context);
+    final list = prov.projects;
+    if (_selectedStatus == null) return list;
+    return list
         .where((project) => project.status == _selectedStatus)
         .toList();
   }
@@ -84,14 +65,14 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadProjects,
+    body: RefreshIndicator(
+        onRefresh: () =>
+          Provider.of<ProjectProvider>(context, listen: false)
+            .refresh(),
               child: Column(
                 children: [
                   // Stats cards
-                  _buildStatsSection(),
+          _buildStatsSection(),
 
                   // Filter indicator
                   if (_selectedStatus != null)
@@ -134,9 +115,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Create project feature coming soon!'),
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const CreateProjectScreen(),
             ),
           );
         },
@@ -146,6 +127,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
   }
 
   Widget _buildStatsSection() {
+    final stats = Provider.of<ProjectProvider>(context).stats;
     return Container(
       margin: const EdgeInsets.all(16),
       child: Row(
@@ -153,7 +135,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           Expanded(
             child: _buildStatCard(
               'Total',
-              _projectStats['total'] ?? 0,
+              stats['total'] ?? 0,
               Colors.blue,
             ),
           ),
@@ -161,7 +143,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           Expanded(
             child: _buildStatCard(
               'Active',
-              _projectStats['active'] ?? 0,
+              stats['active'] ?? 0,
               Colors.green,
             ),
           ),
@@ -169,7 +151,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           Expanded(
             child: _buildStatCard(
               'Planning',
-              _projectStats['planning'] ?? 0,
+              stats['planning'] ?? 0,
               Colors.orange,
             ),
           ),
@@ -177,7 +159,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           Expanded(
             child: _buildStatCard(
               'On Hold',
-              _projectStats['onHold'] ?? 0,
+              stats['onHold'] ?? 0,
               Colors.amber,
             ),
           ),
@@ -252,10 +234,8 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Create project feature coming soon!'),
-                  ),
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const CreateProjectScreen()),
                 );
               },
               icon: const Icon(Icons.add),
@@ -400,7 +380,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                   onSelected: (value) {
                     switch (value) {
                       case 'view':
-                        _showProjectDetails(project);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ProjectDashboardScreen(
+                              project: project,
+                            ),
+                          ),
+                        );
                         break;
                       case 'edit':
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -593,24 +579,15 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
 
     if (confirmed == true) {
-      final result = await _projectService.deleteProject(project.id);
+      await Provider.of<ProjectProvider>(context, listen: false)
+          .deleteProject(project.id);
       if (!mounted) return;
-      if (result['success']) {
-        _loadProjects();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Project deleted successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message']),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Project deleted successfully'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 }

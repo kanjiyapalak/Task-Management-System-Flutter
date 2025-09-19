@@ -4,8 +4,7 @@ import '../models/task.dart';
 import '../services/auth_service.dart';
 
 class TaskService {
-  static const String baseUrl =
-      'http://localhost:3000/api'; // Replace with your API URL
+  static String get baseUrl => AuthService.baseUrl;
   final AuthService _authService = AuthService();
 
   // Singleton pattern

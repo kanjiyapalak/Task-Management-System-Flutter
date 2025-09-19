@@ -1,11 +1,19 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 
 class AuthService {
-  static const String baseUrl =
-      'http://localhost:3000/api'; // Replace with your API URL
+  static String get baseUrl {
+    // Use Android emulator loopback if running on Android device/emulator
+    if (kIsWeb) return 'http://localhost:3000/api';
+    try {
+      if (Platform.isAndroid) return 'http://10.0.2.2:3000/api';
+    } catch (_) {}
+    return 'http://localhost:3000/api';
+  }
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
 

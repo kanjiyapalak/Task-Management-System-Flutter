@@ -13,6 +13,7 @@ class Task {
   final String assignedTo;
   final String assignedBy;
   final List<String> tags;
+  final String? projectId;
 
   Task({
     required this.id,
@@ -25,6 +26,7 @@ class Task {
     required this.assignedTo,
     required this.assignedBy,
     this.tags = const [],
+    this.projectId,
   });
 
   factory Task.fromJson(Map<String, dynamic> json) {
@@ -47,6 +49,7 @@ class Task {
       assignedTo: json['assignedTo'] ?? '',
       assignedBy: json['assignedBy'] ?? '',
       tags: List<String>.from(json['tags'] ?? []),
+      projectId: json['projectId'],
     );
   }
 
@@ -62,6 +65,7 @@ class Task {
       'assignedTo': assignedTo,
       'assignedBy': assignedBy,
       'tags': tags,
+      'projectId': projectId,
     };
   }
 
@@ -76,6 +80,7 @@ class Task {
     String? assignedTo,
     String? assignedBy,
     List<String>? tags,
+    String? projectId,
   }) {
     return Task(
       id: id ?? this.id,
@@ -88,6 +93,7 @@ class Task {
       assignedTo: assignedTo ?? this.assignedTo,
       assignedBy: assignedBy ?? this.assignedBy,
       tags: tags ?? this.tags,
+      projectId: projectId ?? this.projectId,
     );
   }
 }

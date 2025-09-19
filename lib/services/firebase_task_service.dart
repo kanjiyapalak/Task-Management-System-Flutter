@@ -79,6 +79,7 @@ class FirebaseTaskService {
     required TaskPriority priority,
     DateTime? dueDate,
     List<String> tags = const [],
+    String? projectId,
   }) async {
     try {
       final userId = _authService.currentUserId;
@@ -96,6 +97,7 @@ class FirebaseTaskService {
         'assignedTo': userId,
         'assignedBy': userId,
         'tags': tags,
+        'projectId': projectId,
       };
 
       final docRef = await _tasksCollection.add(taskData);

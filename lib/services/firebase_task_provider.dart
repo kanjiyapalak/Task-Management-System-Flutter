@@ -126,6 +126,7 @@ class TaskProvider extends ChangeNotifier {
     required TaskPriority priority,
     DateTime? dueDate,
     List<String> tags = const [],
+    String? projectId,
   }) async {
     try {
       final result = await _taskService.createTask(
@@ -134,6 +135,7 @@ class TaskProvider extends ChangeNotifier {
         priority: priority,
         dueDate: dueDate,
         tags: tags,
+        projectId: projectId,
       );
 
       if (result['success'] == true) {
@@ -152,6 +154,7 @@ class TaskProvider extends ChangeNotifier {
           tags: tags,
           assignedTo: 'self',
           assignedBy: 'self',
+          projectId: projectId,
         );
 
         _tasks.insert(0, newTask);
