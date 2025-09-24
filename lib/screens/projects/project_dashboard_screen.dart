@@ -3,12 +3,15 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../models/project.dart';
 import '../../models/task.dart';
+import '../../models/project_member.dart';
 import '../../services/project_provider.dart';
 import '../../widgets/task_card.dart';
 import 'assign_task_screen.dart';
 import 'project_members_screen.dart';
 import 'invite_users_screen.dart';
 import 'user_project_tasks_screen.dart';
+import 'member_project_tasks_screen.dart';
+import 'edit_project_screen.dart';
 
 class ProjectDashboardScreen extends StatelessWidget {
   final Project project;
@@ -19,6 +22,8 @@ class ProjectDashboardScreen extends StatelessWidget {
     final prov = Provider.of<ProjectProvider>(context);
     // Ensure tasks are loaded from backend when opening
     prov.ensureProjectTasksLoaded(project.id);
+    // Ensure members are hydrated for display
+    prov.ensureMembersLoaded(project.id);
     final tasks = prov.tasks(project.id);
     final members = prov.members(project.id);
     final completed =
@@ -35,6 +40,52 @@ class ProjectDashboardScreen extends StatelessWidget {
           style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         actions: [
+          Builder(builder: (context) {
+            final isLeader = prov.authProvider.currentUser?.id == project.createdBy;
+            if (!isLeader) return const SizedBox.shrink();
+            return PopupMenuButton<String>(
+              icon: const Icon(Icons.admin_panel_settings, color: Colors.black),
+              onSelected: (v) async {
+                switch (v) {
+                  case 'edit':
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => EditProjectScreen(project: project),
+                      ),
+                    );
+                    break;
+                  case 'archive':
+                    prov.setProjectArchived(project.id, true);
+                    break;
+                  case 'unarchive':
+                    prov.setProjectArchived(project.id, false);
+                    break;
+                }
+              },
+              itemBuilder: (c) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit, size: 16, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text('Edit Project'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: project.archived ? 'unarchive' : 'archive',
+                  child: Row(
+                    children: [
+                      Icon(project.archived ? Icons.unarchive : Icons.archive, size: 16, color: Colors.amber),
+                      const SizedBox(width: 8),
+                      Text(project.archived ? 'Unarchive' : 'Archive'),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }),
           IconButton(
             icon: const Icon(Icons.person_add, color: Colors.black),
             onPressed: () => Navigator.of(context).push(
@@ -64,15 +115,19 @@ class ProjectDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AssignTaskScreen(project: project),
+      floatingActionButton: Builder(builder: (context) {
+        final isLeader = prov.authProvider.currentUser?.id == project.createdBy;
+        if (!isLeader) return const SizedBox.shrink();
+        return FloatingActionButton.extended(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => AssignTaskScreen(project: project),
+            ),
           ),
-        ),
-        icon: const Icon(Icons.add_task),
-        label: const Text('Assign Task'),
-      ),
+          icon: const Icon(Icons.add_task),
+          label: const Text('Assign Task'),
+        );
+      }),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -83,6 +138,8 @@ class ProjectDashboardScreen extends StatelessWidget {
             _progress(progress),
             const SizedBox(height: 16),
             _meta(project, members.length, tasks.length),
+            const SizedBox(height: 16),
+            _membersSection(context, members),
             const SizedBox(height: 16),
             _tasksSection(context, tasks),
           ],
@@ -237,6 +294,64 @@ class ProjectDashboardScreen extends StatelessWidget {
           ],
         ),
       );
+
+  Widget _membersSection(BuildContext context, List<ProjectMember> members) {
+    if (members.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Members',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: members.map((m) {
+              final color = m.role == ProjectRole.leader ? Colors.indigo : Colors.blueGrey;
+              return InkWell(
+                borderRadius: BorderRadius.circular(20),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => MemberProjectTasksScreen(
+                        project: project,
+                        member: m,
+                      ),
+                    ),
+                  );
+                },
+                child: Chip(
+                  avatar: CircleAvatar(
+                    backgroundColor: color.withValues(alpha: 0.1),
+                    child: Text(
+                      m.name.isNotEmpty ? m.name[0].toUpperCase() : 'U',
+                      style: TextStyle(color: color),
+                    ),
+                  ),
+                  label: Text(m.name),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _tasksSection(BuildContext context, List<Task> tasks) {
     if (tasks.isEmpty) {

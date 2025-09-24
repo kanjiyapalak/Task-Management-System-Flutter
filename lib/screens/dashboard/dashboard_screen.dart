@@ -10,6 +10,7 @@ import '../tasks/create_task_screen.dart';
 import '../tasks/task_detail_screen.dart';
 import '../calendar/calendar_screen.dart';
 import '../projects/projects_screen.dart';
+import '../projects/requests_screen.dart';
 import '../../services/project_provider.dart';
 import '../../models/project_invite.dart';
 
@@ -26,7 +27,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProjects();
+    // Defer provider refresh to next frame to avoid notify during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProjects();
+    });
   }
 
   Future<void> _loadProjects() async {
@@ -77,26 +81,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onPressed: _refreshAll,
         ),
         Consumer<AuthProvider>(
-          builder: (context, authProvider, child) => GestureDetector(
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
-            child: Container(
-              margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
-              child: CircleAvatar(
-                backgroundColor: Theme.of(context).primaryColor,
-                child: Text(
-                  authProvider.currentUser?.firstName
-                          .substring(0, 1)
-                          .toUpperCase() ??
-                      'U',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+          builder: (context, authProvider, child) => PopupMenuButton<String>(
+            icon: CircleAvatar(
+              backgroundColor: Theme.of(context).primaryColor,
+              child: Text(
+                authProvider.currentUser?.firstName
+                        .substring(0, 1)
+                        .toUpperCase() ??
+                    'U',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
+            onSelected: (value) {
+              if (value == 'profile') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                );
+              } else if (value == 'requests') {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const RequestsScreen()),
+                );
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'profile', child: Text('Profile')),
+              PopupMenuItem(value: 'requests', child: Text('Requests')),
+            ],
           ),
         ),
       ],
@@ -126,10 +139,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildInvitesInbox() {
-    return Consumer<ProjectProvider>(
-      builder: (context, prov, _) {
-        return FutureBuilder(
-          future: prov.fetchMyInvites(),
+    return Consumer2<AuthProvider, ProjectProvider>(
+      builder: (context, auth, prov, _) {
+        final email = auth.currentUser?.email;
+        if (email == null || email.isEmpty) return const SizedBox.shrink();
+  final messenger = ScaffoldMessenger.of(context);
+  return StreamBuilder(
+          stream: prov.myInvitesStream(email),
           builder: (context, snapshot) {
             final invites = snapshot.data ?? [];
             final pending = invites.where((i) => i.status == InviteStatus.pending).toList();
@@ -157,7 +173,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 final ok = await prov.respondToInvite(inviteId: inv.id, accept: true);
                                 if (!mounted) return;
                                 if (ok) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     const SnackBar(content: Text('Invite accepted')),
                                   );
                                   _loadProjects();
@@ -171,7 +187,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 final ok = await prov.respondToInvite(inviteId: inv.id, accept: false);
                                 if (!mounted) return;
                                 if (ok) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  messenger.showSnackBar(
                                     const SnackBar(content: Text('Invite declined')),
                                   );
                                 }
@@ -431,12 +447,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () async {
-          final result = await Navigator.of(context).push(
+          final nav = Navigator.of(context);
+          final taskProv = Provider.of<TaskProvider>(context, listen: false);
+          final result = await nav.push(
             MaterialPageRoute(builder: (_) => TaskDetailScreen(task: task)),
           );
-          if (!mounted) return;
+          if (!context.mounted) return;
           if (result != null) {
-            Provider.of<TaskProvider>(context, listen: false).loadTasks();
+            taskProv.loadTasks();
           }
         },
         child: Padding(
@@ -585,15 +603,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Icons.add,
                 Colors.blue,
                 () async {
-                  final result = await Navigator.of(context).push(
+                  final nav = Navigator.of(context);
+                  final taskProv = Provider.of<TaskProvider>(context, listen: false);
+                  final result = await nav.push(
                     MaterialPageRoute(builder: (_) => const CreateTaskScreen()),
                   );
-                  if (!mounted) return;
+                  if (!context.mounted) return;
                   if (result == true) {
-                    Provider.of<TaskProvider>(
-                      context,
-                      listen: false,
-                    ).loadTasks();
+                    taskProv.loadTasks();
                   }
                 },
               ),
@@ -611,6 +628,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildActionCard(
+                'Requests',
+                Icons.mail_outline,
+                Colors.purple,
+                () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const RequestsScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: SizedBox.shrink()),
           ],
         ),
       ],

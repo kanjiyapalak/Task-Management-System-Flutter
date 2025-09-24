@@ -6,6 +6,7 @@ class CustomButton extends StatelessWidget {
   final bool isLoading;
   final Color? backgroundColor;
   final Color? textColor;
+  final Color? borderColor;
   final double? width;
   final double height;
   final BorderRadius? borderRadius;
@@ -18,6 +19,7 @@ class CustomButton extends StatelessWidget {
     this.isLoading = false,
     this.backgroundColor,
     this.textColor,
+  this.borderColor,
     this.width,
     this.height = 56,
     this.borderRadius,
@@ -36,6 +38,9 @@ class CustomButton extends StatelessWidget {
           foregroundColor: textColor ?? Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: borderRadius ?? BorderRadius.circular(12),
+            side: borderColor != null
+                ? BorderSide(color: borderColor!)
+                : BorderSide.none,
           ),
           elevation: 2,
           disabledBackgroundColor: Colors.grey[300],

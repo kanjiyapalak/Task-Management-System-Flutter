@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/project.dart';
 import '../../models/project_member.dart';
 import '../../services/project_provider.dart';
+import 'member_project_tasks_screen.dart';
 
 class ProjectMembersScreen extends StatelessWidget {
   final Project project;
@@ -11,6 +12,7 @@ class ProjectMembersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final prov = Provider.of<ProjectProvider>(context);
+    prov.ensureMembersLoaded(project.id);
     final members = prov.members(project.id);
 
     return Scaffold(
@@ -52,6 +54,16 @@ class ProjectMembersScreen extends StatelessWidget {
               ),
               title: Text(m.name),
               subtitle: Text(m.email),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => MemberProjectTasksScreen(
+                      project: project,
+                      member: m,
+                    ),
+                  ),
+                );
+              },
               trailing: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(

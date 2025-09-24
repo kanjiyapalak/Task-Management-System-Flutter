@@ -5,6 +5,8 @@ import '../../models/project.dart';
 import '../../services/project_provider.dart';
 import 'create_project_screen.dart';
 import 'project_dashboard_screen.dart';
+import 'archived_projects_screen.dart';
+import 'edit_project_screen.dart';
 
 class ProjectsScreen extends StatefulWidget {
   const ProjectsScreen({super.key});
@@ -27,7 +29,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
 
   List<Project> get _filteredProjects {
     final prov = Provider.of<ProjectProvider>(context);
-    final list = prov.projects;
+    final list = prov.projects.where((p) => !p.archived).toList();
     if (_selectedStatus == null) return list;
     return list
         .where((project) => project.status == _selectedStatus)
@@ -46,6 +48,17 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Archived Projects',
+            icon: const Icon(Icons.archive_outlined, color: Colors.black),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ArchivedProjectsScreen(),
+                ),
+              );
+            },
+          ),
           PopupMenuButton<ProjectStatus?>(
             icon: const Icon(Icons.filter_list, color: Colors.black),
             onSelected: (status) {
@@ -278,6 +291,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                     ),
                   ),
                 ),
+                if (project.archived)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'ARCHIVED',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey),
+                    ),
+                  ),
                 _buildStatusChip(project.status),
               ],
             ),
@@ -389,11 +415,19 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                         );
                         break;
                       case 'edit':
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Edit project feature coming soon!'),
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => EditProjectScreen(project: project),
                           ),
                         );
+                        break;
+                      case 'archive':
+                        Provider.of<ProjectProvider>(context, listen: false)
+                            .setProjectArchived(project.id, true);
+                        break;
+                      case 'unarchive':
+                        Provider.of<ProjectProvider>(context, listen: false)
+                            .setProjectArchived(project.id, false);
                         break;
                       case 'delete':
                         _deleteProject(project);
@@ -418,6 +452,20 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           Icon(Icons.edit, size: 16, color: Colors.green),
                           SizedBox(width: 8),
                           Text('Edit Project'),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: project.archived ? 'unarchive' : 'archive',
+                      child: Row(
+                        children: [
+                          Icon(
+                            project.archived ? Icons.unarchive : Icons.archive,
+                            size: 16,
+                            color: Colors.amber,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(project.archived ? 'Unarchive' : 'Archive'),
                         ],
                       ),
                     ),
@@ -495,70 +543,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     return Colors.grey[600]!; // Normal
   }
 
-  void _showProjectDetails(Project project) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(project.name),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Description',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(project.description),
-              const SizedBox(height: 16),
-
-              Text(
-                'Status',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              _buildStatusChip(project.status),
-              const SizedBox(height: 16),
-
-              Text(
-                'Progress',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text('${(project.progress * 100).toInt()}% completed'),
-              const SizedBox(height: 16),
-
-              if (project.dueDate != null) ...[
-                Text(
-                  'Due Date',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(DateFormat.yMMMEd().format(project.dueDate!)),
-                const SizedBox(height: 16),
-              ],
-
-              Text(
-                'Team Members',
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text('${project.teamMembers.length} members'),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _deleteProject(Project project) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    final projProv = Provider.of<ProjectProvider>(context, listen: false);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -566,11 +554,11 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
         content: Text('Are you sure you want to delete "${project.name}"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
+            onPressed: () => nav.pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
+            onPressed: () => nav.pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: const Text('Delete'),
           ),
@@ -579,10 +567,9 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     );
 
     if (confirmed == true) {
-      await Provider.of<ProjectProvider>(context, listen: false)
-          .deleteProject(project.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      await projProv.deleteProject(project.id);
+      if (!context.mounted) return;
+      messenger.showSnackBar(
         const SnackBar(
           content: Text('Project deleted successfully'),
           backgroundColor: Colors.green,

@@ -41,7 +41,7 @@ class TaskProvider extends ChangeNotifier {
       _tasks = await _taskService.getTasks();
       _recomputeStats();
     } catch (e) {
-      print('Error loading tasks: $e');
+      debugPrint('Error loading tasks: $e');
     } finally {
       _loading = false;
       notifyListeners();
@@ -57,7 +57,7 @@ class TaskProvider extends ChangeNotifier {
         notifyListeners();
       },
       onError: (error) {
-        print('Error in task stream: $error');
+        debugPrint('Error in task stream: $error');
       },
     );
   }
@@ -86,7 +86,7 @@ class TaskProvider extends ChangeNotifier {
       _tasks[idx] = prev;
       _recomputeStats();
       notifyListeners();
-      print('Error updating task status: $e');
+  debugPrint('Error updating task status: $e');
       return false;
     }
   }
@@ -115,7 +115,7 @@ class TaskProvider extends ChangeNotifier {
       _tasks.insert(idx, removed);
       _recomputeStats();
       notifyListeners();
-      print('Error deleting task: $e');
+  debugPrint('Error deleting task: $e');
       return false;
     }
   }
@@ -165,7 +165,7 @@ class TaskProvider extends ChangeNotifier {
       }
       return false;
     } catch (e) {
-      print('Error creating task: $e');
+      debugPrint('Error creating task: $e');
       return false;
     }
   }
@@ -183,7 +183,7 @@ class TaskProvider extends ChangeNotifier {
       _stats = await _taskService.getTaskStats();
       notifyListeners();
     } catch (e) {
-      print('Error refreshing stats: $e');
+      debugPrint('Error refreshing stats: $e');
     }
   }
 }

@@ -68,9 +68,11 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final members = [
-      ...Provider.of<ProjectProvider>(context).members(widget.project.id)
-    ]..sort((a, b) => a.role.index.compareTo(b.role.index));
+    final prov = Provider.of<ProjectProvider>(context);
+    // ensure members are loaded for this project
+    prov.ensureMembersLoaded(widget.project.id);
+    final members = [...prov.members(widget.project.id)]
+      ..sort((a, b) => a.role.index.compareTo(b.role.index));
 
     return Scaffold(
       backgroundColor: Colors.grey[50],

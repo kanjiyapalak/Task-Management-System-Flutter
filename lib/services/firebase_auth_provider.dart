@@ -164,4 +164,23 @@ class AuthProvider extends ChangeNotifier {
       return {'success': false, 'message': 'Password change failed: $e'};
     }
   }
+
+  Future<Map<String, dynamic>> signInWithGoogle() async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final result = await _authService.signInWithGoogle();
+      if (result['success'] == true) {
+        _currentUser = await _authService.getUserData();
+        await _authService.updateLastLogin();
+      }
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return {'success': false, 'message': 'Google sign-in failed: $e'};
+    }
+  }
 }

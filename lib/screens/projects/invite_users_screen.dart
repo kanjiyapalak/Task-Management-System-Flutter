@@ -5,7 +5,7 @@ import '../../models/project_invite.dart';
 import '../../services/project_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
-import '../../services/user_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class InviteUsersScreen extends StatefulWidget {
   final Project project;
@@ -21,7 +21,7 @@ class _InviteUsersScreenState extends State<InviteUsersScreen> {
   bool _searching = false;
   bool _sending = false;
   Map<String, dynamic>? _foundUser;
-  final _userService = UserService();
+  final _db = FirebaseFirestore.instance;
 
   @override
   @override
@@ -47,7 +47,37 @@ class _InviteUsersScreenState extends State<InviteUsersScreen> {
       _searching = true;
       _foundUser = null;
     });
-    final user = await _userService.findByEmail(email);
+    // Query Firestore users collection by email
+    final snap = await _db
+        .collection('users')
+        .where('email', isEqualTo: email.toLowerCase())
+        .limit(1)
+        .get();
+  final user = snap.docs.isNotEmpty
+    ? () {
+      final data = snap.docs.first.data();
+      final id = snap.docs.first.id;
+      final fullName = (data['fullName'] as String?)?.trim();
+      final firstFromFull = (fullName != null && fullName.isNotEmpty)
+        ? fullName.split(' ').first
+        : '';
+      final lastFromFull = (fullName != null && fullName.contains(' '))
+        ? fullName.split(' ').skip(1).join(' ')
+        : '';
+      final firstName = (data['firstName'] as String?)?.trim();
+      final lastName = (data['lastName'] as String?)?.trim();
+      return {
+        ...data,
+        'id': id,
+        'firstName': (firstName == null || firstName.isEmpty)
+          ? firstFromFull
+          : firstName,
+        'lastName': (lastName == null || lastName.isEmpty)
+          ? lastFromFull
+          : lastName,
+      };
+      }()
+    : null;
     if (!mounted) return;
     setState(() {
       _searching = false;
@@ -65,10 +95,11 @@ class _InviteUsersScreenState extends State<InviteUsersScreen> {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) return;
     setState(() => _sending = true);
-    Provider.of<ProjectProvider>(context, listen: false)
-        .sendInvites(projectId: widget.project.id, emails: [email]);
-    await Provider.of<ProjectProvider>(context, listen: false)
-        .refreshInvitesForProject(widget.project.id);
+  final prov = Provider.of<ProjectProvider>(context, listen: false);
+  prov.sendInvites(projectId: widget.project.id, emails: [email]);
+  await prov.refreshInvitesForProject(widget.project.id);
+  // Also refresh my invites cache so Requests tab shows immediately
+  await prov.fetchMyInvites();
     if (!mounted) return;
     setState(() => _sending = false);
     ScaffoldMessenger.of(context).showSnackBar(
@@ -124,7 +155,7 @@ class _InviteUsersScreenState extends State<InviteUsersScreen> {
                         child: CustomButton(
                           text: 'Send Invite',
                           isLoading: _sending,
-                          onPressed: _foundUser != null ? _sendInvite : null,
+                          onPressed: _sendInvite, // allow sending by email even if not registered yet
                           height: 48,
                         ),
                       ),
@@ -135,7 +166,7 @@ class _InviteUsersScreenState extends State<InviteUsersScreen> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       _foundUser == null && !_searching && _emailCtrl.text.isNotEmpty
-                          ? 'No user found for ${''}${''}'
+                          ? 'No user found for ${_emailCtrl.text.trim()}'
                           : '',
                       style: TextStyle(color: Colors.red[600], fontSize: 12),
                     ),
@@ -155,21 +186,32 @@ class _InviteUsersScreenState extends State<InviteUsersScreen> {
                 child: Row(
                   children: [
                     CircleAvatar(
-                      child: Text(((
-                                  (_foundUser!['firstName'] ?? '')
-                                          as String)
-                                      .isNotEmpty
-                              ? (_foundUser!['firstName'] as String)[0]
-                              : 'U')
-                          .toUpperCase()),
+                      child: Text(() {
+                        final fn = (_foundUser!['firstName'] ?? '') as String;
+                        final ln = (_foundUser!['lastName'] ?? '') as String;
+                        final full = (_foundUser!['fullName'] ?? '') as String;
+                        final display = ('$fn $ln').trim().isNotEmpty
+                            ? ('$fn $ln').trim()
+                            : (full.isNotEmpty ? full : (_foundUser!['email'] ?? '') as String);
+                        return display.isNotEmpty
+                            ? display[0].toUpperCase()
+                            : 'U';
+                      }()),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '${_foundUser!['firstName'] ?? ''} ${_foundUser!['lastName'] ?? ''}',
+                          Text(() {
+                            final fn = (_foundUser!['firstName'] ?? '') as String;
+                            final ln = (_foundUser!['lastName'] ?? '') as String;
+                            final full = (_foundUser!['fullName'] ?? '') as String;
+                            final display = ('$fn $ln').trim().isNotEmpty
+                                ? ('$fn $ln').trim()
+                                : (full.isNotEmpty ? full : '');
+                            return display;
+                          }(),
                             style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           Text(
@@ -203,7 +245,7 @@ class _InviteUsersScreenState extends State<InviteUsersScreen> {
                 ),
               )
             else
-              ...invites.map((i) => _inviteTile(context, i)).toList(),
+              ...invites.map((i) => _inviteTile(context, i)),
           ],
         ),
       ),

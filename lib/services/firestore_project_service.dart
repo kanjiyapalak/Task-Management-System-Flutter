@@ -20,9 +20,40 @@ class FirestoreProjectService {
       'createdBy': createdBy,
       'teamMembers': [createdBy],
       'progress': 0.0,
+      'archived': false,
     });
     final snap = await docRef.get();
     return _fromDoc(snap);
+  }
+
+  Future<bool> updateProject({
+    required String projectId,
+    required String name,
+    required String description,
+    DateTime? dueDate,
+    ProjectStatus? status,
+  }) async {
+    try {
+      final updates = <String, dynamic>{
+        'name': name,
+        'description': description,
+        'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
+      };
+      if (status != null) updates['status'] = status.toString().split('.').last;
+      await _db.collection('projects').doc(projectId).update(updates);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> setArchived(String projectId, bool archived) async {
+    try {
+      await _db.collection('projects').doc(projectId).update({'archived': archived});
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<Project>> getProjectsForUser(String userId) async {
@@ -65,6 +96,7 @@ class FirestoreProjectService {
       teamMembers: List<String>.from(j['teamMembers'] ?? const []),
       progress: (j['progress'] ?? 0.0).toDouble(),
       createdBy: j['createdBy'] ?? '',
+      archived: (j['archived'] ?? false) == true,
     );
   }
 }

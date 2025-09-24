@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart' as app_user;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+import 'package:google_sign_in/google_sign_in.dart';
 
 class FirebaseAuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -120,6 +122,13 @@ class FirebaseAuthService {
   // Sign out
   Future<void> signOut() async {
     await _auth.signOut();
+    // Also sign out Google on mobile
+    if (!kIsWeb) {
+      try {
+        final g = GoogleSignIn();
+        await g.signOut();
+      } catch (_) {}
+    }
   }
 
   // Get user data from Firestore
@@ -151,7 +160,7 @@ class FirebaseAuthService {
         );
       }
     } catch (e) {
-      print('Error getting user data: $e');
+      debugPrint('Error getting user data: $e');
     }
     return null;
   }
@@ -165,7 +174,7 @@ class FirebaseAuthService {
         });
       }
     } catch (e) {
-      print('Error updating last login: $e');
+      debugPrint('Error updating last login: $e');
     }
   }
 
@@ -189,6 +198,63 @@ class FirebaseAuthService {
       return {'success': false, 'message': message};
     } catch (e) {
       return {'success': false, 'message': 'An unexpected error occurred: $e'};
+    }
+  }
+
+  // Google Sign-In (web and mobile)
+  Future<Map<String, dynamic>> signInWithGoogle() async {
+    try {
+      UserCredential credential;
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        provider
+          .addScope('email')
+          .addScope('profile');
+        credential = await _auth.signInWithPopup(provider);
+      } else {
+        final googleUser = await GoogleSignIn().signIn();
+        if (googleUser == null) {
+          return {'success': false, 'message': 'Sign-in cancelled'};
+        }
+        final googleAuth = await googleUser.authentication;
+        final oauthCredential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        credential = await _auth.signInWithCredential(oauthCredential);
+      }
+
+      final user = credential.user;
+      if (user == null) {
+        return {'success': false, 'message': 'Google sign-in failed'};
+      }
+
+      // Ensure user doc exists/updated
+      final docRef = _firestore.collection('users').doc(user.uid);
+      final snap = await docRef.get();
+      final fullName = user.displayName ?? '';
+      final email = user.email ?? '';
+      final data = <String, dynamic>{
+        'uid': user.uid,
+        'email': email,
+        'fullName': fullName,
+        'photoURL': user.photoURL,
+        'lastLogin': FieldValue.serverTimestamp(),
+      };
+      if (snap.exists) {
+        await docRef.update(data);
+      } else {
+        await docRef.set({
+          ...data,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {'success': true, 'message': 'Login successful', 'user': user};
+    } on FirebaseAuthException catch (e) {
+      return {'success': false, 'message': e.message ?? 'Google sign-in error'};
+    } catch (e) {
+      return {'success': false, 'message': 'Google sign-in failed: $e'};
     }
   }
 }

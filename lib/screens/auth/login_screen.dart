@@ -7,6 +7,7 @@ import '../../widgets/custom_button.dart';
 import '../dashboard/dashboard_screen.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -50,6 +51,21 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         }
       }
+    }
+  }
+
+  Future<void> _handleGoogle() async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final result = await authProvider.signInWithGoogle();
+    if (!mounted) return;
+    if (result['success'] == true) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const DashboardScreen()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['message'] ?? 'Google sign-in failed')),
+      );
     }
   }
 
@@ -202,16 +218,17 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 const SizedBox(height: 24),
 
-                // Demo Login Button
-                CustomButton(
-                  text: 'Quick Demo Login',
-                  onPressed: () {
-                    _emailController.text = 'demo@taskmanager.com';
-                    _passwordController.text = 'password123';
-                    _handleLogin();
-                  },
-                  backgroundColor: Colors.grey[600],
-                  icon: const Icon(Icons.play_arrow, color: Colors.white),
+                // Google Sign-In Button
+                Consumer<AuthProvider>(
+                  builder: (context, auth, _) => CustomButton(
+                    text: 'Continue with Google',
+                    onPressed: _handleGoogle,
+                    isLoading: auth.isLoading,
+                    backgroundColor: Colors.white,
+                    textColor: Colors.black87,
+                    borderColor: Colors.grey[300],
+                    icon: const FaIcon(FontAwesomeIcons.google, color: Colors.red),
+                  ),
                 ),
 
                 const SizedBox(height: 32),

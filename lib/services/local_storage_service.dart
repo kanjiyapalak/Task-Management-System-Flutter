@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/task.dart';
 
@@ -17,7 +18,7 @@ class LocalStorageService {
       final tasksJson = tasks.map((task) => task.toJson()).toList();
       await prefs.setString(_tasksKey, jsonEncode(tasksJson));
     } catch (e) {
-      print('Error saving tasks to local storage: $e');
+      debugPrint('Error saving tasks to local storage: $e');
     }
   }
 
@@ -32,7 +33,7 @@ class LocalStorageService {
         return tasksJson.map((taskJson) => Task.fromJson(taskJson)).toList();
       }
     } catch (e) {
-      print('Error loading tasks from local storage: $e');
+      debugPrint('Error loading tasks from local storage: $e');
     }
     return [];
   }

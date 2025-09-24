@@ -10,6 +10,7 @@ class Project {
   final List<String> teamMembers;
   final double progress; // 0.0 to 1.0
   final String createdBy;
+  final bool archived;
 
   Project({
     required this.id,
@@ -21,6 +22,7 @@ class Project {
     this.teamMembers = const [],
     this.progress = 0.0,
     required this.createdBy,
+    this.archived = false,
   });
 
   factory Project.fromJson(Map<String, dynamic> json) {
@@ -39,6 +41,7 @@ class Project {
       teamMembers: List<String>.from(json['teamMembers'] ?? []),
       progress: (json['progress'] ?? 0.0).toDouble(),
       createdBy: json['createdBy'] ?? '',
+      archived: (json['archived'] ?? false) == true,
     );
   }
 
@@ -53,6 +56,7 @@ class Project {
       'teamMembers': teamMembers,
       'progress': progress,
       'createdBy': createdBy,
+      'archived': archived,
     };
   }
 
@@ -66,6 +70,7 @@ class Project {
     List<String>? teamMembers,
     double? progress,
     String? createdBy,
+    bool? archived,
   }) {
     return Project(
       id: id ?? this.id,
@@ -77,6 +82,7 @@ class Project {
       teamMembers: teamMembers ?? this.teamMembers,
       progress: progress ?? this.progress,
       createdBy: createdBy ?? this.createdBy,
+      archived: archived ?? this.archived,
     );
   }
 }

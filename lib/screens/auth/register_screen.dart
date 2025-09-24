@@ -4,6 +4,7 @@ import 'package:email_validator/email_validator.dart';
 import '../../services/firebase_auth_provider.dart';
 import '../../widgets/custom_text_field.dart';
 import '../../widgets/custom_button.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -34,6 +35,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate() && _acceptTerms) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
 
       final result = await authProvider.register(
         firstName: _firstNameController.text.trim(),
@@ -42,23 +45,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
         password: _passwordController.text,
       );
 
-      if (mounted) {
-        if (result['success']) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.green,
-            ),
-          );
-          Navigator.of(context).pop(); // Go back to login screen
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message']),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+      if (!context.mounted) return;
+      if (result['success']) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.green,
+          ),
+        );
+        navigator.pop(); // Go back to login screen
+      } else {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } else if (!_acceptTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -296,6 +298,49 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
 
                 const SizedBox(height: 32),
+
+                // OR divider
+                Row(
+                  children: [
+                    Expanded(child: Divider(color: Colors.grey[300])),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'OR',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    Expanded(child: Divider(color: Colors.grey[300])),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+
+                // Google Sign-Up
+                Consumer<AuthProvider>(
+                  builder: (context, auth, _) => CustomButton(
+                    text: 'Sign up with Google',
+                    onPressed: () async {
+                      final res = await auth.signInWithGoogle();
+                      if (!context.mounted) return;
+                      if (res['success'] == true) {
+                        Navigator.of(context).pop();
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(res['message'] ?? 'Google sign-in failed')),
+                        );
+                      }
+                    },
+                    isLoading: auth.isLoading,
+                    backgroundColor: Colors.white,
+                    textColor: Colors.black87,
+                    borderColor: Colors.grey[300],
+                    icon: const FaIcon(FontAwesomeIcons.google, color: Colors.red),
+                  ),
+                ),
 
                 // Login Link
                 Row(

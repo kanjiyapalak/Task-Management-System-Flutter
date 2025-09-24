@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import '../models/task.dart';
 import 'firebase_auth_service.dart';
 
@@ -40,7 +41,7 @@ class FirebaseTaskService {
         });
       }).toList();
     } catch (e) {
-      print('Error getting tasks: $e');
+  debugPrint('Error getting tasks: $e');
       return [];
     }
   }
@@ -67,7 +68,7 @@ class FirebaseTaskService {
             }).toList();
           });
     } catch (e) {
-      print('Error getting tasks stream: $e');
+  debugPrint('Error getting tasks stream: $e');
       return Stream.value([]);
     }
   }
@@ -108,7 +109,7 @@ class FirebaseTaskService {
         'taskId': docRef.id,
       };
     } catch (e) {
-      print('Error creating task: $e');
+  debugPrint('Error creating task: $e');
       return {'success': false, 'message': 'Failed to create task: $e'};
     }
   }
@@ -122,7 +123,7 @@ class FirebaseTaskService {
       await _tasksCollection.doc(taskId).update(updates);
       return {'success': true, 'message': 'Task updated successfully'};
     } catch (e) {
-      print('Error updating task: $e');
+  debugPrint('Error updating task: $e');
       return {'success': false, 'message': 'Failed to update task: $e'};
     }
   }
@@ -138,7 +139,7 @@ class FirebaseTaskService {
       });
       return {'success': true, 'message': 'Task status updated successfully'};
     } catch (e) {
-      print('Error updating task status: $e');
+  debugPrint('Error updating task status: $e');
       return {'success': false, 'message': 'Failed to update task status: $e'};
     }
   }
@@ -149,7 +150,7 @@ class FirebaseTaskService {
       await _tasksCollection.doc(taskId).delete();
       return {'success': true, 'message': 'Task deleted successfully'};
     } catch (e) {
-      print('Error deleting task: $e');
+  debugPrint('Error deleting task: $e');
       return {'success': false, 'message': 'Failed to delete task: $e'};
     }
   }
@@ -172,7 +173,7 @@ class FirebaseTaskService {
         });
       }
     } catch (e) {
-      print('Error getting task by ID: $e');
+  debugPrint('Error getting task by ID: $e');
     }
     return null;
   }
@@ -199,7 +200,7 @@ class FirebaseTaskService {
         });
       }).toList();
     } catch (e) {
-      print('Error getting tasks by status: $e');
+  debugPrint('Error getting tasks by status: $e');
       return [];
     }
   }
@@ -229,7 +230,7 @@ class FirebaseTaskService {
             .length,
       };
     } catch (e) {
-      print('Error getting task stats: $e');
+  debugPrint('Error getting task stats: $e');
       return {
         'total': 0,
         'pending': 0,
